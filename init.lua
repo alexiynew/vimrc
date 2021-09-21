@@ -137,30 +137,6 @@ function _G.set_search_options()
     opt.matchpairs:append('<:>')
 end
 
---------------------------------------------------------------------------------
--- Colors
---------------------------------------------------------------------------------
-
-function _G.set_colorscheme()
-    -- Enable syntax highlighting
-    opt.syntax = 'ON'
-
-    -- Set terminal color mode
-    opt.termguicolors = true
-    opt.background = 'dark'
-
-    -- Enables pseudo-transparency for the popup-menu
-    opt.pumblend = 15
-
-
-    -- Fancy colors
-    local schemes = fn.getcompletion('', 'color')
-    if table.contains(schemes, 'gruvbox8') then
-        cmd('colorscheme gruvbox8')
-    else
-        cmd('colorscheme desert')
-    end
-end
 
 --------------------------------------------------------------------------------
 -- Files, backups
@@ -253,7 +229,7 @@ end
 --------------------------------------------------------------------------------
 
 function _G.set_mappings()
-    local options = {noremap = true, silent = true}
+    local options = {noremap = true, silent = false}
 
     -- Leader
     g.mapleader = "'"
@@ -273,30 +249,43 @@ function _G.set_mappings()
     map('n', '<leader>l', ':set list!<cr>', options)
 
     map('n', '<leader>v', ':Lexplore<cr>', options)
+
+    -- Soomthier scroll
+    map('n', '<C-u>', '<C-u>zz', options)
+    map('n', '<C-d>', '<C-d>zz', options)
+    map('n', '<C-f>', '<C-f>zz', options)
+    map('n', '<C-b>', '<C-b>zz', options)
 end
 
---------------------------------------------------------------------------------
--- Misc
---------------------------------------------------------------------------------
-
-function _G.apply_settings()
-    cmd('source $MYVIMRC')
-end
-
-function _G.misc_setup()
-    -- Autoreload settings
-    cmd('augroup AutoReloadSettings')
-    cmd('   autocmd!')
-    cmd('   autocmd BufWritePost $MYVIMRC call v:lua.apply_settings()')
-    cmd('augroup END')
-end
 
 --------------------------------------------------------------------------------
 -- Plugins
 --------------------------------------------------------------------------------
 
+function _G.setup_colorscheme()
+    -- Enable syntax highlighting
+    opt.syntax = 'ON'
+
+    -- Set terminal color mode
+    opt.termguicolors = true
+    opt.background = 'dark'
+
+    -- Enables pseudo-transparency for the popup-menu
+    opt.pumblend = 15
+
+
+    -- Fancy colors
+    local schemes = fn.getcompletion('', 'color')
+    if table.contains(schemes, 'gruvbox8') then
+        cmd('colorscheme gruvbox8')
+    else
+        cmd('colorscheme desert')
+    end
+end
+
+
 function _G.setup_lsp()
-    vim.lsp.set_log_level 'trace'
+    -- vim.lsp.set_log_level 'trace'
 
     local function install_lsp_servers(lspinstall, servers)
         local installed = lspinstall.installed_servers()
@@ -321,6 +310,7 @@ function _G.setup_lsp()
         }
     end
 
+    -- Set message icons
     local signs = { Error = "ÔÉß ", Warning = "ÔÑ™ ", Hint = "Ô†¥ ", Information = "ÔÑ© " }
 
     for t, icon in pairs(signs) do
@@ -328,7 +318,29 @@ function _G.setup_lsp()
       vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
     end
 
+    -- Messages highlight
+    require 'lsp-colors'.setup()
 end
+
+function _G.setup_format()
+    local remove_trailing_whitespace = { cmd = {"sed -i '' -e's/[ \t]*$//'"} }
+    local clang_format = { cmd = {'clang-format -style=file -i' } }
+
+    require "format".setup {
+        ["*"]  = { remove_trailing_whitespace },
+        cpp    = { clang_format },
+        c      = { clang_format },
+        objcpp = { clang_format },
+        objc   = { clang_format },
+    }
+
+    -- Run format on save
+    cmd('augroup Format')
+    cmd('    autocmd!')
+    cmd('    autocmd BufWritePost * FormatWrite')
+    cmd('augroup END')
+end
+
 
 function _G.setup_plugins()
     local function install_packer()
@@ -366,19 +378,25 @@ function _G.setup_plugins()
 
         -- Statusline
         use 'beauwilliams/statusline.lua'
+
+        -- Formating
+        use 'lukas-reineke/format.nvim'
     end
 
     install_packer()
 
+    -- Setup packer
     local packer = require'packer'
     packer.startup(add_plugins)
     packer.install()
     packer.compile()
 
+    -- Setup plugins
+    setup_colorscheme()
     setup_lsp()
-
-    require 'lsp-colors'.setup()
+    setup_format()
 end
+
 
 --------------------------------------------------------------------------------
 -- Apply all setup
@@ -393,8 +411,6 @@ set_statusline_options()
 
 setup_plugins()
 
-set_colorscheme()
 set_mappings()
-misc_setup()
 
 
