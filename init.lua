@@ -249,12 +249,6 @@ function _G.set_mappings()
     map('n', '<leader>l', ':set list!<cr>', options)
 
     map('n', '<leader>v', ':Lexplore<cr>', options)
-
-    -- Soomthier scroll
-    map('n', '<C-u>', '<C-u>zz', options)
-    map('n', '<C-d>', '<C-d>zz', options)
-    map('n', '<C-f>', '<C-f>zz', options)
-    map('n', '<C-b>', '<C-b>zz', options)
 end
 
 
@@ -381,6 +375,8 @@ function _G.setup_plugins()
 
         -- Formating
         use 'lukas-reineke/format.nvim'
+
+        use 'psliwka/vim-smoothie'
     end
 
     install_packer()
