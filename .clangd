@@ -1,0 +1,11 @@
+---
+
+CompileFlags:
+    Add: [-xc++,
+          -Wall,
+          -Wextra,
+          -std=c++17,
+          -I/Users/a_fedorov/Projects/neutrino_framework/neutrino,
+          -I/Users/a_fedorov/Projects/neutrino_framework/dependencies,
+          ]
+    Remove: -W*
