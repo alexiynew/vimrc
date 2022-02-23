@@ -1,3 +1,4 @@
+
 --------------------------------------------------------------------------------
 -- Aliases
 --------------------------------------------------------------------------------
@@ -140,6 +141,7 @@ function _G.set_search_options()
 
     vim.opt.grepprg = 'rg -n'
 
+    -- TODO: Improve file search to location list
     vim.cmd('command! -nargs=1 Find call v:lua.custom_find(<f-args>)<cr>')
 end
 
@@ -241,17 +243,32 @@ function _G.setup_plugins()
         -- Packer itself
         use 'wbthomason/packer.nvim'
 
+        -- TODO: Setup LSP if we need it
         -- LSP
-        use 'neovim/nvim-lspconfig'
-        use 'kabouzeid/nvim-lspinstall'
-        use 'nvim-lua/completion-nvim'
+        -- use 'neovim/nvim-lspconfig'
+        -- use 'kabouzeid/nvim-lspinstall'
+        -- use 'williamboman/nvim-lsp-installer'
+        -- use 'nvim-lua/completion-nvim'
 
         -- Colorschemes
-        use 'sheerun/vim-wombat-scheme'
-        use 'folke/lsp-colors.nvim'
+        use 'sainnhe/sonokai'
+        -- use 'folke/lsp-colors.nvim'
 
-        -- Icons
-        use 'kyazdani42/nvim-web-devicons'
+        -- File tree
+        use {
+            'kyazdani42/nvim-tree.lua',
+            requires = {
+              'kyazdani42/nvim-web-devicons', -- optional, for file icon
+            },
+        }
+
+        -- Git
+        use {
+          'lewis6991/gitsigns.nvim',
+          requires = {
+            'nvim-lua/plenary.nvim'
+          },
+        }
 
         -- Formating
         use 'lukas-reineke/format.nvim'
@@ -271,14 +288,10 @@ function _G.setup_plugins()
     packer.install()
     packer.compile()
 
-    local tsconfig = require 'nvim-treesitter.configs'
+    require('gitsigns').setup()
 
-    -- TODO: autoinstall TS parsers (bash, c, cpp, cmake, yaml, json, commnet, lua, vim)
-    tsconfig.setup {
-        highlight = { enable = true },
-    }
+    require('nvim-tree').setup()
 end
-
 
 --------------------------------------------------------------------------------
 -- Install plugins
@@ -315,66 +328,14 @@ function _G.setup_colorscheme()
     -- Enables pseudo-transparency for the popup-menu
     vim.opt.pumblend = 15
 
-    -- Fancy wombat based colors
-    vim.cmd('hi clear')
-    vim.cmd('syntax reset')
 
-    -- General colors
-    vim.cmd('hi Normal ctermfg=252 ctermbg=234 cterm=none guifg=#e3e0d7 guibg=#242424 gui=none')
-    vim.cmd('hi Cursor ctermfg=234 ctermbg=228 cterm=none guifg=#242424 guibg=#eae788 gui=none')
-    vim.cmd('hi Visual ctermfg=251 ctermbg=239 cterm=none guifg=#c3c6ca guibg=#554d4b gui=none')
-    vim.cmd('hi VisualNOS ctermfg=251 ctermbg=236 cterm=none guifg=#c3c6ca guibg=#303030 gui=none')
-    vim.cmd('hi Search ctermfg=177 ctermbg=241 cterm=none guifg=#d787ff guibg=#636066 gui=none')
-    vim.cmd('hi Folded ctermfg=103 ctermbg=237 cterm=none guifg=#a0a8b0 guibg=#3a4046 gui=none')
-    vim.cmd('hi Title ctermfg=230 cterm=bold guifg=#ffffd7 gui=bold')
-    vim.cmd('hi StatusLine ctermfg=230 ctermbg=238 cterm=none guifg=#ffffd7 guibg=#444444 gui=none')
-    vim.cmd('hi VertSplit ctermfg=238 ctermbg=238 cterm=none guifg=#444444 guibg=#444444 gui=none')
-    vim.cmd('hi StatusLineNC ctermfg=241 ctermbg=238 cterm=none guifg=#857b6f guibg=#444444 gui=none')
-    vim.cmd('hi LineNr ctermfg=241 ctermbg=232 cterm=none guifg=#857b6f guibg=#080808 gui=none')
-    vim.cmd('hi SpecialKey ctermfg=241 ctermbg=235 cterm=none guifg=#626262 guibg=#2b2b2b gui=none')
-    vim.cmd('hi WarningMsg ctermfg=203 guifg=#ff5f55')
-    vim.cmd('hi ErrorMsg ctermfg=196 ctermbg=234 cterm=bold guifg=#e3e0d7 guibg=#3a3a3a gui=bold')
-    vim.cmd('hi SpellBad ctermfg=196 ctermbg=234 cterm=bold guifg=#e3e0d7 guibg=#3a3a3a gui=bold')
-    vim.cmd('hi SpellCap ctermfg=196 ctermbg=234 cterm=bold guifg=#e3e0d7 guibg=#3a3a3a gui=bold')
+    -- Sonokai theme setup
+    vim.g.sonokai_style = 'default' -- 'default', 'atlantis', 'andromeda', 'shusia', `maia', 'espresso'
+    vim.g.sonokai_disable_italic_comment = 1
 
-    vim.cmd('hi CursorLine ctermbg=236 cterm=none guibg=#32322f')
-    vim.cmd('hi MatchParen ctermfg=228 ctermbg=101 cterm=bold guifg=#eae788 guibg=#857b6f gui=bold')
-    vim.cmd('hi Pmenu ctermfg=230 ctermbg=238 guifg=#ffffd7 guibg=#444444')
-    vim.cmd('hi PmenuSel ctermfg=232 ctermbg=192 guifg=#080808 guibg=#cae982')
-
-    vim.cmd('hi ColorColumn guibg=#262626 ctermbg=235')
-
-    -- Tabline
-    vim.cmd('hi! link TabLine StatusLineNC')
-    vim.cmd('hi! link TabLineFill StatusLine')
-    vim.cmd('hi TabLineSel cterm=bold gui=bold')
-
-    -- Diff highlighting
-    vim.cmd('hi DiffAdd ctermbg=17 guibg=#2a0d6a')
-    vim.cmd('hi DiffDelete ctermfg=234 ctermbg=60 cterm=none guifg=#242424 guibg=#3e3969 gui=none')
-    vim.cmd('hi DiffText ctermbg=53 cterm=none guibg=#73186e gui=none')
-    vim.cmd('hi DiffChange ctermbg=237 guibg=#382a37')
-
-    -- Syntax
-    vim.cmd('hi Keyword ctermfg=111 cterm=none guifg=#88b8f6 gui=none')
-    vim.cmd('hi Statement ctermfg=111 cterm=none guifg=#88b8f6 gui=none')
-    vim.cmd('hi Constant ctermfg=173 cterm=none guifg=#e5786d gui=none')
-    vim.cmd('hi Number ctermfg=173 cterm=none guifg=#e5786d gui=none')
-    vim.cmd('hi PreProc ctermfg=173 cterm=none guifg=#e5786d gui=none')
-    vim.cmd('hi Function ctermfg=192 cterm=none guifg=#cae982 gui=none')
-    vim.cmd('hi Identifier ctermfg=192 cterm=none guifg=#cae982 gui=none')
-    vim.cmd('hi Type ctermfg=186 cterm=none guifg=#d4d987 gui=none')
-    vim.cmd('hi Special ctermfg=229 cterm=none guifg=#eadead gui=none')
-    vim.cmd('hi String ctermfg=113 cterm=none guifg=#95e454 gui=none')
-    vim.cmd('hi Comment ctermfg=246 cterm=none guifg=#9c998e gui=none')
-    vim.cmd('hi Todo ctermfg=101 cterm=none guifg=#857b6f gui=none')
-
-    -- Links
-    vim.cmd('hi! link FoldColumn Folded')
-    vim.cmd('hi! link CursorColumn CursorLine')
-    vim.cmd('hi! link NonText LineNr')
-
+    vim.cmd('colorscheme sonokai')
 end
+
 
 
 --------------------------------------------------------------------------------
@@ -407,11 +368,22 @@ function _G.setup_lsp()
         }
     end
 
+    -- Not so annoying diagnostics
+    vim.lsp.handlers['textDocument/publishDiagnostics'] = vim.lsp.with(
+        vim.lsp.diagnostic.on_publish_diagnostics,
+        {
+            virtual_text = false,
+            signs = true,
+            update_in_insert = true,
+            underline = false,
+        }
+    )
+
     -- Set message icons
-    local signs = { Error = " ", Warning = " ", Hint = " ", Information = " " }
+    local signs = { Error = ' ', Warning = ' ', Hint = ' ', Information = ' ' }
 
     for t, icon in pairs(signs) do
-      local hl = "LspDiagnosticsSign" .. t
+      local hl = 'LspDiagnosticsSign' .. t
       vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
     end
 
@@ -423,6 +395,18 @@ function _G.setup_lsp()
     vim.g.completion_enable_auto_popup = false
 end
 
+--------------------------------------------------------------------------------
+-- Treesitter
+--------------------------------------------------------------------------------
+function _G.setup_treesitter()
+    local tsconfig = require 'nvim-treesitter.configs'
+
+    tsconfig.setup {
+        ensure_installed = {'bash', 'c', 'cpp', 'cmake', 'yaml', 'json', 'comment', 'lua', 'vim'},
+        highlight = { enable = true },
+    }
+end
+
 
 --------------------------------------------------------------------------------
 -- Formating
@@ -430,7 +414,7 @@ end
 
 function _G.setup_format()
     local remove_trailing_whitespace = { cmd = {"sed -i '' -e's/[ \t]*$//'"} }
-    local clang_format = { cmd = {'clang-format -style=file -i' } }
+    local clang_format = { cmd = {'clang-format -style=file -i --fallback-style=WebKit' } }
 
     require "format".setup {
         ["*"]  = { remove_trailing_whitespace },
@@ -444,7 +428,9 @@ function _G.setup_format()
     vim.cmd('augroup Format')
     vim.cmd('   autocmd!')
     vim.cmd('   autocmd BufWritePost * FormatWrite')
-    vim.cmd('   autocmd BufEnter * set fo-=c fo-=r fo-=o')        -- don't auto commenting new lines
+
+    -- Don't auto commenting new lines
+    vim.cmd('   autocmd BufEnter * set fo-=c fo-=r fo-=o')
     vim.cmd('augroup END')
 end
 
@@ -454,20 +440,55 @@ end
 --------------------------------------------------------------------------------
 
 function _G.get_diagnostics()
+    local function get_diagnostic_sign(diagnostics_sign_name, default)
+        local sign = vim.fn.sign_getdefined(diagnostics_sign_name)
+        if next(sign) == nil then
+            return default
+        end
+        return sign[1]['text']
+    end
+
     local errors_count = vim.lsp.diagnostic.get_count(0, 'Error')
     local warnings_count = vim.lsp.diagnostic.get_count(0, 'Warning')
 
-    -- TODO: get signs from sign_getdefined
-    local signs = { Error = " ", Warning = " ", Hint = " ", Information = " " }
-    --local err = vim.fn.sign_getdefined('LspDiagnosticsSignError')
-    --local war = vim.fn.sign_getdefined('LspDiagnosticsSignWarning')
+    local error_sign = get_diagnostic_sign('LspDiagnosticsSignError', ' ')
+    local warning_sign = get_diagnostic_sign('LspDiagnosticsSignWarning', ' ')
 
     local diagnostics_string = ''
     if errors_count > 0 or warnings_count > 0 then
-        diagnostics_string = signs.Error .. errors_count .. ' ' .. signs.Warning .. warnings_count
+        diagnostics_string = error_sign .. errors_count .. ' ' .. warning_sign .. warnings_count
     end
 
     return diagnostics_string
+end
+
+function _G.get_git_status()
+    local hunks = {0,0,0} -- vim.api.nvim_eval('GitGutterGetHunkSummary()')
+
+    local hunks_string = ''
+    if hunks[1] > 0 or hunks[2] > 0 or hunks[3] > 0 then
+        hunks_string = string.format('+%d ~%d -%d', hunks[1], hunks[2], hunks[3])
+    end
+
+    return hunks_string
+end
+
+function _G.update_git_branch()
+    local branch = trim(vim.fn.system("git rev-parse --abbrev-ref HEAD"))
+    if branch:find('not a git repository') then
+        branch = ''
+    end
+
+    vim.g.git_branch = branch
+end
+
+function _G.get_git_branch()
+    local branch_string = ''
+    if vim.g.git_branch:len() > 0 then
+        branch_string = ' ' .. vim.g.git_branch
+    end
+
+    return branch_string
 end
 
 function _G.setup_statusline()
@@ -476,6 +497,8 @@ function _G.setup_statusline()
         '%f ',                                       -- file_name
         '%m%r%h%w',                                  -- modified, readonly, help, preview flags
         ' %{v:lua.get_diagnostics()}',               -- diagnostics count
+        ' %{v:lua.get_git_branch()}',                -- git branch
+        ' %{v:lua.get_git_status()}',                -- git status
         '%=',                                        -- right_align
         '%{&fileencoding?&fileencoding:&encoding} ', -- encoding
         '%y %q',                                     -- filetype or quickfi
@@ -485,6 +508,10 @@ function _G.setup_statusline()
     vim.opt.statusline = table.concat(parts)
 end
 
+vim.cmd('augroup UpdateGitBranch')
+vim.cmd('   autocmd!')
+vim.cmd('   autocmd BufEnter * :silent! lua update_git_branch()')
+vim.cmd('augroup END')
 
 --------------------------------------------------------------------------------
 -- Tabline
@@ -509,10 +536,10 @@ function _G.tab_label(tabnr)
     end
 
     if changed > 0 then
-        label = label .. ' +'
+        label = '+ ' .. label
     end
 
-    return bufnr .. ': ' .. label
+    return label
 end
 
 
@@ -529,11 +556,11 @@ function _G.setup_tabline()
         table.insert(parts, ' %{v:lua.tab_label(' .. i .. ')} ')
     end
 
+    -- TODO: Fix get_pwd function
     table.insert(parts, '%#TabLineFill#')
-    table.insert(parts, '%= %{$PWD}')
+    -- table.insert(parts, '%= %{v:lua.get_pwd()}')
 
     vim.opt.tabline = table.concat(parts)
-
 
     vim.cmd('augroup UpdateTabLine')
     vim.cmd('   autocmd!')
@@ -543,24 +570,48 @@ end
 
 
 --------------------------------------------------------------------------------
+-- Quickfix
+--------------------------------------------------------------------------------
+
+function _G.setup_quickfix()
+    vim.cmd('augroup QuickfixSetup')
+    vim.cmd('   autocmd!')
+    vim.cmd('   autocmd BufReadPost quickfix setlocal wrap')
+    vim.cmd('augroup END')
+end
+
+
+--------------------------------------------------------------------------------
 -- Projects
 --------------------------------------------------------------------------------
 
-function _G.load_project_init()
-    local init_file = vim.fn.fnamemodify(vim.fn.findfile('.project_init.lua', vim.fn.expand('%:p') .. ';'), ':p')
+function _G.setup_project()
+    local function setup_neutrino_framework()
+        vim.opt.makeprg = 'cmake --build ./build'
 
-    if init_file and vim.fn.filereadable(init_file) > 0 then
-        local m = dofile(init_file)
-        m.setup()
+        -- Run command
+        -- TODO: Setup working directory for Run command
+        vim.cmd('command! -nargs=1 Run cexpr system(./build/test/Debug/<f-args>)')
+
+        -- Test command
+        vim.cmd('command! Test cexpr system("cmake --build ./build -t check")')
+    end
+
+    local root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. ';'))
+    if root:find('neutrino_framework') then
+        setup_neutrino_framework()
     end
 end
 
-function _G.setup_project_init()
-    vim.cmd('augroup AutoLoadProjectSettings')
+function _G.setup_project_commands()
+    vim.cmd('augroup ProjectSupport')
     vim.cmd('   autocmd!')
-    vim.cmd('   autocmd BufEnter * call v:lua.load_project_init()')
+    vim.cmd('   autocmd BufEnter,BufWritePost * :silent! lua setup_project()')
     vim.cmd('augroup END')
 end
+
+vim.cmd('command! Root call v:lua.setup_project()<cr>')
+
 
 --------------------------------------------------------------------------------
 -- Mappings
@@ -584,23 +635,33 @@ function _G.setup_mappings()
     -- Toggle whitespace showing
     nmap('<leader>l', ':set list!<cr>')
 
-    -- netrw
-    nmap('<leader>v', ':Lexplore %:h<cr>')
+    -- File tree
+    nmap('<leader>v', ':NvimTreeToggle<cr>')
 
     -- LSP
-    nmap('K',  '<cmd>lua vim.lsp.buf.hover()<cr>')
+    -- nmap('K',  '<cmd>lua vim.lsp.buf.hover()<cr>')
 
-    nmap('gD', '<cmd>lua vim.lsp.buf.declaration()<cr>')
-    nmap('gd', '<cmd>lua vim.lsp.buf.definition()<cr>')
-    nmap('gi', '<cmd>lua vim.lsp.buf.implementation()<cr>')
+    -- nmap('gD', '<cmd>lua vim.lsp.buf.declaration()<cr>')
+    -- nmap('gd', '<cmd>lua vim.lsp.buf.definition()<cr>')
+    -- nmap('gi', '<cmd>lua vim.lsp.buf.implementation()<cr>')
 
-    nmap('<leader>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<cr>')
+    -- nmap('<leader>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<cr>')
 
-    nmap('[d', '<cmd>lua vim.lsp.diagnostic.goto_prev()<cr>')
-    nmap(']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<cr>')
+    -- -- Jump by diagnostics
+    -- WARNING: DO NOT USE 'd' IN BINDINGS, IT MAY CORRUPT YOU FILE
+    -- nmap('[d', '<cmd>lua vim.lsp.diagnostic.goto_prev()<cr>')
+    -- nmap(']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<cr>')
 
     -- Alt+o
-    nmap('ø', ':ClangdSwitchSourceHeader<cr>')
+    -- nmap('ø', ':ClangdSwitchSourceHeader<cr>')
+
+    -- Compilation errors
+    nmap('[c', ':cp<cr>')
+    nmap(']c', ':cn<cr>')
+
+    -- Git hunks
+    nmap(']h', '<cmd>lua require"gitsigns.actions".next_hunk()<CR>')
+    nmap('[h', '<cmd>lua require"gitsigns.actions".prev_hunk()<CR>')
 
 end
 
@@ -619,11 +680,13 @@ setup_plugins()
 
 setup_netrw()
 setup_colorscheme()
-setup_lsp()
+-- setup_lsp()
+setup_treesitter()
 setup_format()
 setup_statusline()
 setup_tabline()
-setup_project_init()
+setup_quickfix()
+setup_project_commands()
 setup_mappings()
 
 
