@@ -111,12 +111,6 @@ end
 -- Serch
 --------------------------------------------------------------------------------
 
-function _G.custom_find(pattern)
-    local p = ':cexpr system("fd -g \'' .. pattern .. '\'")'
-    print(p)
-    vim.cmd(p)
-end
-
 function _G.set_search_options()
     -- Ignore case when searching
     vim.opt.ignorecase = true
@@ -140,15 +134,20 @@ function _G.set_search_options()
     vim.opt.matchpairs:append('<:>')
 
     vim.opt.grepprg = 'rg -n'
-
-    -- TODO: Improve file search to location list
-    vim.cmd('command! -nargs=1 Find call v:lua.custom_find(<f-args>)<cr>')
 end
 
 
 --------------------------------------------------------------------------------
 -- Files, backups
 --------------------------------------------------------------------------------
+
+
+function _G.delete_commit_editmsg_buffer()
+    local buffers = vim.fn.getbufinfo('COMMIT_EDITMSG')
+    for _, buf in pairs(buffers) do
+        vim.cmd('bd ' .. buf.bufnr)
+    end
+end
 
 function _G.set_files_backups_options()
     -- Turn backup off, since most stuff is in SVN, git etc. anyway...
@@ -165,6 +164,14 @@ function _G.set_files_backups_options()
 
     -- Finding files - Search down into subfolders
     vim.opt.path:append(vim.fn.getcwd() .. '/**')
+
+    vim.g.project_path = vim.fn.getcwd()
+
+    -- Auto remove COMMIT_EDITMSG buffers
+    vim.cmd('augroup ClearBuffersList')
+    vim.cmd('   autocmd!')
+    vim.cmd('   autocmd VimLeavePre * :silent! lua delete_commit_editmsg_buffer()')
+    vim.cmd('augroup END')
 end
 
 --------------------------------------------------------------------------------
@@ -278,6 +285,7 @@ function _G.setup_plugins()
 
         -- Treesitter
         use {'nvim-treesitter/nvim-treesitter', run = ':TSUpdate' }
+
     end
 
     install_packer()
@@ -542,6 +550,10 @@ function _G.tab_label(tabnr)
     return label
 end
 
+function _G.tabline_getcwd()
+    return vim.fn.getcwd()
+end
+
 
 function _G.setup_tabline()
     local parts = {}
@@ -556,9 +568,8 @@ function _G.setup_tabline()
         table.insert(parts, ' %{v:lua.tab_label(' .. i .. ')} ')
     end
 
-    -- TODO: Fix get_pwd function
     table.insert(parts, '%#TabLineFill#')
-    -- table.insert(parts, '%= %{v:lua.get_pwd()}')
+    table.insert(parts, '%= %{v:lua.tabline_getcwd()}')
 
     vim.opt.tabline = table.concat(parts)
 
@@ -585,21 +596,59 @@ end
 -- Projects
 --------------------------------------------------------------------------------
 
+function _G.update_tags_file()
+    local ctags = "ctags -R "
+    ctags = ctags.."--sort=1 --c++-kinds=+p --fields=+iaS --extra=+q --language-force=C++ "
+    ctags = ctags.."--exclude='.cache/*' --exclude='output/*' --exclude='build/*'"
+
+    print(ctags)
+    vim.fn.system(ctags)
+end
+
+function _G.run_executable(exe)
+    local cmd = "cd ./build/test && ./Debug/" .. exe
+    print(cmd)
+
+    print(vim.fn.system(cmd))
+end
+
+
 function _G.setup_project()
     local function setup_neutrino_framework()
         vim.opt.makeprg = 'cmake --build ./build'
 
-        -- Run command
-        -- TODO: Setup working directory for Run command
-        vim.cmd('command! -nargs=1 Run cexpr system(./build/test/Debug/<f-args>)')
+        vim.opt.wildignore:append('build/*,output/*')
 
-        -- Test command
-        vim.cmd('command! Test cexpr system("cmake --build ./build -t check")')
+        -- Run command
+        vim.cmd('command! -nargs=1 Run call v:lua.run_executable(<f-args>)')
+
+        -- Generate tags file
+        vim.cmd('command! Ctags call v:lua.update_tags_file()')
     end
 
-    local root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. ';'))
+    local function setup_wotb()
+        vim.opt.makeprg = "xcodebuild " ..
+            "-project " .. vim.g.project_path .. "/client/WoTBlitzMacOSCmake.xcodeproj " ..
+		    "-scheme WoTBlitzMacOS " ..
+            "-jobs 6 " ..
+		    "-configuration Debug CONFIGURATION_BUILD_DIR=" .. vim.g.project_path .. "/build/Debug"
+
+        -- Run command
+        vim.cmd('command! Run cexpr system("\'' .. vim.g.project_path .. '/build/Debug/World of Tanks Blitz.app/Contents/MacOS/World of Tanks Blitz\'")')
+    end
+
+    -- local root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. ';'))
+
+    -- if root == nil then
+    --     root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. '/client' .. ';'))
+    -- end
+    local root = vim.g.project_path
+    print("Setting up: " .. root)
+
     if root:find('neutrino_framework') then
         setup_neutrino_framework()
+    elseif root:find('WoTB') then
+        setup_wotb()
     end
 end
 
@@ -607,15 +656,56 @@ function _G.setup_project_commands()
     vim.cmd('augroup ProjectSupport')
     vim.cmd('   autocmd!')
     vim.cmd('   autocmd BufEnter,BufWritePost * :silent! lua setup_project()')
+    vim.cmd('   autocmd BufWritePost *.cpp,*.hpp,*mm :silent! lua update_tags_file()')
     vim.cmd('augroup END')
 end
 
-vim.cmd('command! Root call v:lua.setup_project()<cr>')
+vim.cmd('command! SetupProject call v:lua.setup_project()')
 
 
 --------------------------------------------------------------------------------
 -- Mappings
 --------------------------------------------------------------------------------
+
+function _G.switch_source_header()
+    local fname = vim.fn.expand('%:t:r')
+    local ext = vim.fn.expand('%:e')
+
+    local headers = {'h', 'hpp', 'hh', 'hxx', 'h++'}
+    local sources = {'c', 'cpp', 'cc', 'cxx', 'c++', 'm', 'mm'}
+
+    local function is_header(e)
+        return table.contains(headers, e)
+    end
+
+    local function is_source(e)
+        return table.contains(sources, e)
+    end
+
+    local function find_match_file(name, extensions)
+        for _, e in pairs(extensions) do
+            local files = vim.fn.findfile(name .. '.' .. e)
+            if not (files == "") then
+                return files
+            end
+        end
+
+        return ""
+    end
+
+    local match_file = ""
+    if is_header(ext) then
+        match_file = find_match_file(fname, sources)
+    elseif is_source(ext) then
+        match_file = find_match_file(fname, headers)
+    end
+
+    if not (match_file == "") then
+        vim.cmd('e ' .. match_file)
+    end
+end
+
+vim.cmd('command! Ssh call v:lua.switch_source_header()')
 
 function _G.setup_mappings()
     local options = {noremap = true, silent = false}
@@ -630,7 +720,7 @@ function _G.setup_mappings()
     nmap('<C-h>', ':bp<cr>')
 
     -- Turn off serch highlight
-    nmap('<esc><esc>', ':<C-u>nohlsearch<cr>')
+    nmap('<esc><esc>', ':noh<CR>')
 
     -- Toggle whitespace showing
     nmap('<leader>l', ':set list!<cr>')
@@ -653,7 +743,7 @@ function _G.setup_mappings()
     -- nmap(']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<cr>')
 
     -- Alt+o
-    -- nmap('ø', ':ClangdSwitchSourceHeader<cr>')
+    nmap('ø', '<cmd>lua _G.switch_source_header()<CR>')
 
     -- Compilation errors
     nmap('[c', ':cp<cr>')
