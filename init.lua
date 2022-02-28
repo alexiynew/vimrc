@@ -626,17 +626,6 @@ function _G.setup_project()
         vim.cmd('command! Ctags call v:lua.update_tags_file()')
     end
 
-    local function setup_wotb()
-        vim.opt.makeprg = "xcodebuild " ..
-            "-project " .. vim.g.project_path .. "/client/WoTBlitzMacOSCmake.xcodeproj " ..
-		    "-scheme WoTBlitzMacOS " ..
-            "-jobs 6 " ..
-		    "-configuration Debug CONFIGURATION_BUILD_DIR=" .. vim.g.project_path .. "/build/Debug"
-
-        -- Run command
-        vim.cmd('command! Run cexpr system("\'' .. vim.g.project_path .. '/build/Debug/World of Tanks Blitz.app/Contents/MacOS/World of Tanks Blitz\'")')
-    end
-
     -- local root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. ';'))
 
     -- if root == nil then
@@ -647,8 +636,6 @@ function _G.setup_project()
 
     if root:find('neutrino_framework') then
         setup_neutrino_framework()
-    elseif root:find('WoTB') then
-        setup_wotb()
     end
 end
 
