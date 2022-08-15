@@ -64,8 +64,8 @@ function _G.set_general_options()
     -- Don't redraw while executing macros (good performance config)
     vim.opt.lazyredraw = true
 
-    -- A buffer becomes hidden when it is abandoned
-    vim.opt.hidden = true
+    -- Do not hide buffers
+    vim.opt.hidden = false
 
     -- Short messages
     vim.opt.shortmess = 'filnxtToOIc'
@@ -141,7 +141,6 @@ end
 -- Files, backups
 --------------------------------------------------------------------------------
 
-
 function _G.delete_commit_editmsg_buffer()
     local buffers = vim.fn.getbufinfo('COMMIT_EDITMSG')
     for _, buf in pairs(buffers) do
@@ -165,13 +164,25 @@ function _G.set_files_backups_options()
     -- Finding files - Search down into subfolders
     vim.opt.path:append(vim.fn.getcwd() .. '/**')
 
-    vim.g.project_path = vim.fn.getcwd()
-
     -- Auto remove COMMIT_EDITMSG buffers
     vim.cmd('augroup ClearBuffersList')
     vim.cmd('   autocmd!')
     vim.cmd('   autocmd VimLeavePre * :silent! lua delete_commit_editmsg_buffer()')
     vim.cmd('augroup END')
+
+    -- Restore cursor position
+    vim.api.nvim_create_autocmd({ "BufReadPost" }, {
+        pattern = { "*" },
+        callback = function()
+            vim.api.nvim_exec('silent! normal! g`"zv', false)
+        end,
+    })
+
+    vim.o.autoread = true
+    vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "CursorHoldI", "FocusGained" }, {
+      command = "if mode() != 'c' | checktime | endif",
+      pattern = { "*" },
+    })
 end
 
 --------------------------------------------------------------------------------
@@ -257,52 +268,55 @@ function _G.setup_plugins()
         -- use 'williamboman/nvim-lsp-installer'
         -- use 'nvim-lua/completion-nvim'
 
-        -- Colorschemes
-        use 'sainnhe/sonokai'
-        -- use 'folke/lsp-colors.nvim'
+        -- Treesitter
+        use {
+            'nvim-treesitter/nvim-treesitter',
+            run = function() require('nvim-treesitter.install').update({ with_sync = true }) end,
+        }
 
-        -- File tree
+        --Colorschemes 
+        use 'sainnhe/sonokai' 
+
+        --File tree 
         use {
             'kyazdani42/nvim-tree.lua',
-            requires = {
-              'kyazdani42/nvim-web-devicons', -- optional, for file icon
+            -- file icons
+            requires = { 'kyazdani42/nvim-web-devicons' },
+        }
+
+        --Git
+        use{
+            'lewis6991/gitsigns.nvim',
+            requires = {'nvim-lua/plenary.nvim'},
+        } 
+        end
+
+        install_packer()
+
+        -- Setup packer 
+        local packer = require 'packer' 
+        packer.startup(add_plugins) 
+        packer.install() 
+        packer.compile()
+
+        require('gitsigns').setup()
+
+        require("nvim-tree") .setup {
+            sync_root_with_cwd = true, 
+            respect_buf_cwd = true,
+            update_focused_file =
+            {
+                enable = true,
             },
+            git = {
+                enable = true,
+                ignore = false,
+            }
         }
-
-        -- Git
-        use {
-          'lewis6991/gitsigns.nvim',
-          requires = {
-            'nvim-lua/plenary.nvim'
-          },
-        }
-
-        -- Formating
-        use 'lukas-reineke/format.nvim'
-
-        -- Smooth scroll
-        use 'psliwka/vim-smoothie'
-
-        -- Treesitter
-        use {'nvim-treesitter/nvim-treesitter', run = ':TSUpdate' }
-
-    end
-
-    install_packer()
-
-    -- Setup packer
-    local packer = require 'packer'
-    packer.startup(add_plugins)
-    packer.install()
-    packer.compile()
-
-    require('gitsigns').setup()
-
-    require('nvim-tree').setup()
 end
 
 --------------------------------------------------------------------------------
--- Install plugins
+-- Netrw
 --------------------------------------------------------------------------------
 function _G.setup_netrw()
     -- Tree style listing
@@ -318,6 +332,8 @@ function _G.setup_netrw()
     vim.g.netrw_winsize = 25
 
     vim.g.netrw_special_syntax = 1
+
+    vim.g.netrw_localrmdir='rm -rf'
 end
 
 
@@ -406,12 +422,16 @@ end
 --------------------------------------------------------------------------------
 -- Treesitter
 --------------------------------------------------------------------------------
+
 function _G.setup_treesitter()
     local tsconfig = require 'nvim-treesitter.configs'
 
     tsconfig.setup {
         ensure_installed = {'bash', 'c', 'cpp', 'cmake', 'yaml', 'json', 'comment', 'lua', 'vim'},
+        sync_install = true,
+        auto_install = false,
         highlight = { enable = true },
+
     }
 end
 
@@ -420,22 +440,21 @@ end
 -- Formating
 --------------------------------------------------------------------------------
 
-function _G.setup_format()
+function _G.clang_format_file()
     local remove_trailing_whitespace = { cmd = {"sed -i '' -e's/[ \t]*$//'"} }
-    local clang_format = { cmd = {'clang-format -style=file -i --fallback-style=WebKit' } }
+    local filepath = vim.fn.expand('%:p')
+    local clang_format = 'clang-format -style=file -i ' .. filepath
 
-    require "format".setup {
-        ["*"]  = { remove_trailing_whitespace },
-        cpp    = { clang_format },
-        c      = { clang_format },
-        objcpp = { clang_format },
-        objc   = { clang_format },
-    }
+    vim.fn.system(clang_format)
+    vim.api.nvim_command('checktime')
+end
 
+
+function _G.setup_format()
     -- Run format on save
     vim.cmd('augroup Format')
     vim.cmd('   autocmd!')
-    vim.cmd('   autocmd BufWritePost * FormatWrite')
+    vim.cmd('   autocmd BufWritePost *.c,*.cpp,*.m,*.mm,*.h,*.hpp :silent! lua clang_format_file()')
 
     -- Don't auto commenting new lines
     vim.cmd('   autocmd BufEnter * set fo-=c fo-=r fo-=o')
@@ -446,29 +465,6 @@ end
 --------------------------------------------------------------------------------
 -- Status line
 --------------------------------------------------------------------------------
-
-function _G.get_diagnostics()
-    local function get_diagnostic_sign(diagnostics_sign_name, default)
-        local sign = vim.fn.sign_getdefined(diagnostics_sign_name)
-        if next(sign) == nil then
-            return default
-        end
-        return sign[1]['text']
-    end
-
-    local errors_count = vim.lsp.diagnostic.get_count(0, 'Error')
-    local warnings_count = vim.lsp.diagnostic.get_count(0, 'Warning')
-
-    local error_sign = get_diagnostic_sign('LspDiagnosticsSignError', ' ')
-    local warning_sign = get_diagnostic_sign('LspDiagnosticsSignWarning', ' ')
-
-    local diagnostics_string = ''
-    if errors_count > 0 or warnings_count > 0 then
-        diagnostics_string = error_sign .. errors_count .. ' ' .. warning_sign .. warnings_count
-    end
-
-    return diagnostics_string
-end
 
 function _G.get_git_status()
     local hunks = {0,0,0} -- vim.api.nvim_eval('GitGutterGetHunkSummary()')
@@ -504,7 +500,6 @@ function _G.setup_statusline()
         '%3.(%n%): ',                                -- buffer_number
         '%f ',                                       -- file_name
         '%m%r%h%w',                                  -- modified, readonly, help, preview flags
-        ' %{v:lua.get_diagnostics()}',               -- diagnostics count
         ' %{v:lua.get_git_branch()}',                -- git branch
         ' %{v:lua.get_git_status()}',                -- git status
         '%=',                                        -- right_align
@@ -554,6 +549,63 @@ function _G.tabline_getcwd()
     return vim.fn.getcwd()
 end
 
+-- "Rename tabs to show tab# and # of viewports
+-- if exists("+showtabline")
+--     function! MyTabLine()
+--         let s = ''
+--         let wn = ''
+--         let t = tabpagenr()
+--         let i = 1
+--         while i <= tabpagenr('$')
+--             let buflist = tabpagebuflist(i)
+--             let winnr = tabpagewinnr(i)
+--             let s .= '%' . i . 'T'
+--             let s .= (i == t ? '%1*' : '%2*')
+--             let s .= ' '
+--             let wn = tabpagewinnr(i,'$')
+--
+--             let s .= (i== t ? '%#TabNumSel#' : '%#TabNum#')
+--             let s .= i
+--             if tabpagewinnr(i,'$') > 1
+--                 let s .= '.'
+--                 let s .= (i== t ? '%#TabWinNumSel#' : '%#TabWinNum#')
+--                 let s .= (tabpagewinnr(i,'$') > 1 ? wn : '')
+--             end
+--
+--             let s .= ' %*'
+--             let s .= (i == t ? '%#TabLineSel#' : '%#TabLine#')
+--             let bufnr = buflist[winnr - 1]
+--             let file = bufname(bufnr)
+--             let buftype = getbufvar(bufnr, 'buftype')
+--             if buftype == 'nofile'
+--                 if file =~ '\/.'
+--                     let file = substitute(file, '.*\/\ze.', '', '')
+--                 endif
+--             else
+--                 let file = fnamemodify(file, ':p:t')
+--             endif
+--             if file == ''
+--                 let file = '[No Name]'
+--             endif
+--             let s .= file
+--             let s .= (i == t ? '%m' : '')
+--             let i = i + 1
+--         endwhile
+--         let s .= '%T%#TabLineFill#%='
+--         return s
+--     endfunction
+--     set stal=2
+--     set tabline=%!MyTabLine()
+-- endif
+
+-- set tabpagemax=15
+-- hi TabLineSel term=bold cterm=bold ctermfg=16 ctermbg=229
+-- hi TabWinNumSel term=bold cterm=bold ctermfg=90 ctermbg=229
+-- hi TabNumSel term=bold cterm=bold ctermfg=16 ctermbg=229
+--
+-- hi TabLine term=underline ctermfg=16 ctermbg=145
+-- hi TabWinNum term=bold cterm=bold ctermfg=90 ctermbg=145
+-- hi TabNum term=bold cterm=bold ctermfg=16 ctermbg=145
 
 function _G.setup_tabline()
     local parts = {}
@@ -606,7 +658,15 @@ function _G.update_tags_file()
 end
 
 function _G.run_executable(exe)
-    local cmd = "cd ./build/test && ./Debug/" .. exe
+    local exe_file = exe
+    vim.fn.findfile('./build/test/' .. exe)
+    if not (vim.fn.findfile('./build/test/' .. exe) == "") then
+        exe_file = './' .. exe
+    elseif not (vim.fn.findfile('./build/test/Debug/' .. exe) == "") then
+        exe_file = './Debug/' .. exe
+    end
+
+    local cmd = "cd ./build/test && " .. exe_file
     print(cmd)
 
     print(vim.fn.system(cmd))
@@ -624,18 +684,6 @@ function _G.setup_project()
 
         -- Generate tags file
         vim.cmd('command! Ctags call v:lua.update_tags_file()')
-    end
-
-    -- local root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. ';'))
-
-    -- if root == nil then
-    --     root = trim(vim.fn.finddir('.git/..', vim.fn.expand('%:p:h') .. '/client' .. ';'))
-    -- end
-    local root = vim.g.project_path
-    print("Setting up: " .. root)
-
-    if root:find('neutrino_framework') then
-        setup_neutrino_framework()
     end
 end
 
@@ -684,73 +732,69 @@ function _G.switch_source_header()
     if is_header(ext) then
         match_file = find_match_file(fname, sources)
     elseif is_source(ext) then
-        match_file = find_match_file(fname, headers)
+        match_file = find_match_file(fname, headers) 
     end
 
-    if not (match_file == "") then
-        vim.cmd('e ' .. match_file)
-    end
+    if not(match_file == "") then
+        vim.cmd('e '..match_file) 
+    end 
 end
 
-vim.cmd('command! Ssh call v:lua.switch_source_header()')
 
 function _G.setup_mappings()
     local options = {noremap = true, silent = false}
-
     local nmap = function(key, action) vim.api.nvim_set_keymap('n', key, action, options) end
-
-    -- Leader
+    
+    -- Leader 
     vim.g.mapleader = "'"
-
-    -- Buffer navigation
-    nmap('<C-l>', ':bn<cr>')
-    nmap('<C-h>', ':bp<cr>')
-
-    -- Turn off serch highlight
+    
+    -- Buffer navigation 
+    nmap('<C-l>', ':bn<cr>') nmap('<C-h>', ':bp<cr>')
+    
+    -- Turn off serch highlight 
     nmap('<esc><esc>', ':noh<CR>')
-
-    -- Toggle whitespace showing
+    
+    -- Toggle whitespace showing 
     nmap('<leader>l', ':set list!<cr>')
-
-    -- File tree
+    
+    -- File tree 
     nmap('<leader>v', ':NvimTreeToggle<cr>')
-
+    
     -- LSP
-    -- nmap('K',  '<cmd>lua vim.lsp.buf.hover()<cr>')
-
+    -- nmap('K', '<cmd>lua vim.lsp.buf.hover()<cr>')
+    
     -- nmap('gD', '<cmd>lua vim.lsp.buf.declaration()<cr>')
-    -- nmap('gd', '<cmd>lua vim.lsp.buf.definition()<cr>')
+    -- nmap( 'gd', '<cmd>lua vim.lsp.buf.definition()<cr>')
     -- nmap('gi', '<cmd>lua vim.lsp.buf.implementation()<cr>')
-
-    -- nmap('<leader>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<cr>')
-
-    -- -- Jump by diagnostics
-    -- WARNING: DO NOT USE 'd' IN BINDINGS, IT MAY CORRUPT YOU FILE
+    
+    -- nmap( '<leader>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<cr>')
+    
+    --Jump by diagnostics
+    -- WARNING : DO NOT USE 'd' IN BINDINGS, IT MAY CORRUPT YOU FILE
     -- nmap('[d', '<cmd>lua vim.lsp.diagnostic.goto_prev()<cr>')
     -- nmap(']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<cr>')
-
-    -- Alt+o
+    
+    -- Alt + o 
     nmap('ø', '<cmd>lua _G.switch_source_header()<CR>')
-
-    -- Compilation errors
+    
+    -- Compilation errors 
     nmap('[c', ':cp<cr>')
     nmap(']c', ':cn<cr>')
-
+    
     -- Git hunks
     nmap(']h', '<cmd>lua require"gitsigns.actions".next_hunk()<CR>')
     nmap('[h', '<cmd>lua require"gitsigns.actions".prev_hunk()<CR>')
-
+    
 end
-
 
 --------------------------------------------------------------------------------
 -- Aply settings
 --------------------------------------------------------------------------------
 
-set_general_options()
-set_search_options()
+set_general_options() 
+set_search_options() 
 set_files_backups_options()
-set_indent_options()
+set_indent_options() 
 set_folding_options()
 
 setup_plugins()
@@ -759,11 +803,10 @@ setup_netrw()
 setup_colorscheme()
 -- setup_lsp()
 setup_treesitter()
-setup_format()
-setup_statusline()
+setup_format() 
+setup_statusline() 
 setup_tabline()
 setup_quickfix()
-setup_project_commands()
+-- setup_project_commands()
 setup_mappings()
-
 
